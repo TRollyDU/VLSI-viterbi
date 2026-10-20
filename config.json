@@ -1,0 +1,15 @@
+{
+	"DESIGN_NAME" : "top",
+	"RUN_DIR": "/mnt/d/HDL_Verilog/viterbi/result",
+	"VERILOG_FILES": ["dir::*.v"], 
+	"CLOCK_PERIOD" : 4.0 ,
+	"CLOCK_PORT": "clk",
+	"SYNTH_STRATEGY"  : "DELAY 0",
+	"SYNTH_ADDER_TYPE": "YOSYS",
+	"PL_TIMING_DRIVEN": true,
+	"RUN_POST_GRT_RESIZER_TIMING": true,
+	"PNR_SDC_FILE": "dir::viterbi_pnr.sdc",
+	"SIGNOFF_SDC_FILE": "dir::viterbi.sdc",
+	"PL_RESIZER_TIMING_OPTIMIZATIONS": 1,
+	"SYNTH_FLAT_TOP": 1
+}
