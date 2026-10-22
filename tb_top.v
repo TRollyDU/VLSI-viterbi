@@ -10,6 +10,7 @@ module tb_top;
     reg         in_valid;
     reg [15:0]  codeword_in;
     wire        out_valid;
+    wire        in_ready;
     wire [7:0]  data_out;
 
     integer fin, fout;
@@ -19,25 +20,29 @@ module tb_top;
     reg [15:0] input_value;
     reg [7:0]  expected_value;
 
-    top dut (
+    // The supplied files require a known zero-tail endpoint.
+    top #(.ZERO_TAIL(1)) dut (
         .clk         (clk),
         .rst_n       (rst_n),
         .in_valid    (in_valid),
+        .in_ready    (in_ready),
         .codeword_in (codeword_in),
         .out_valid   (out_valid),
+        .out_ready   (1'b1),
         .data_out    (data_out)
     );
 
-    always #2 clk = ~clk;
+    localparam real CLK_PERIOD_NS = 1000.0/350.0;
+    always #(CLK_PERIOD_NS/2.0) clk = ~clk;
 
-    // Gui mot vector, cho output hop le, sau do doi khoang cach toi thieu
-    // ba canh clock truoc khi gui vector tiep theo.
+    // Hold the request until an input handshake; output is always ready.
     task automatic run_vector;
         begin
             @(negedge clk);
             codeword_in = input_value;
             in_valid    = 1'b1;
-
+            @(posedge clk);
+            while (!in_ready) @(posedge clk);
             @(negedge clk);
             in_valid    = 1'b0;
 
@@ -53,6 +58,9 @@ module tb_top;
                          total + 1, input_value);
                 fail = fail + 1;
             end
+            else if (timeout != 17) begin
+                $fatal(1,"Expected E17, observed E%0d",timeout);
+            end
             else if (data_out !== expected_value) begin
                 $display("FAIL vector %0d: input=%016b expected=%08b actual=%08b",
                          total + 1, input_value, expected_value, data_out);
@@ -64,7 +72,7 @@ module tb_top;
             total = total + 1;
 
             @(negedge clk);
-            repeat (2) @(posedge clk);
+            repeat (1) @(posedge clk);
         end
     endtask
 
@@ -81,7 +89,7 @@ module tb_top;
         fout = $fopen("output.txt", "r");
         if (fin == 0 || fout == 0) begin
             $display("ERROR: khong mo duoc input.txt/output.txt");
-            $finish(1);
+            $fatal(1, "Cannot open vector files");
         end
 
         // Reset dong bo voi clock.
@@ -95,20 +103,20 @@ module tb_top;
                 rc_out = $fscanf(fout, "%b\n", expected_value);
                 if (rc_out != 1) begin
                     $display("ERROR: output.txt thieu vector %0d", total + 1);
-                    $finish(1);
+                    $fatal(1, "Expected vector missing");
                 end
                 run_vector;
             end
             else if (!$feof(fin)) begin
                 $display("ERROR: input.txt co dong khong hop le");
-                $finish(1);
+                $fatal(1, "Malformed input vector");
             end
         end
 
         rc_out = $fscanf(fout, "%b\n", expected_value);
         if (rc_out == 1) begin
             $display("ERROR: output.txt co them vector");
-            $finish(1);
+            $fatal(1, "Extra expected vector");
         end
 
         $fclose(fin);
@@ -116,10 +124,10 @@ module tb_top;
 
         $display("COMPARE SUMMARY: total=%0d pass=%0d fail=%0d",
                  total, pass, fail);
-        if (total == 0 || fail != 0)
-            $finish(1);
-        else
-            $finish(0);
+        if (total != 1025 || fail != 0)
+            $fatal(1, "File comparison failed");
+        $display("PASS: tb_top 1025/1025 ZERO_TAIL=1 file vectors, E17, RTL clock 350 MHz");
+        $finish;
     end
 
 endmodule

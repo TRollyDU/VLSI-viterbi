@@ -1,44 +1,75 @@
 module controller (
     input clk,
     input rst_n,
-    input in_valid,
-    output step_en,
-    output reg_ex_en,
-    output output_en,
-    output piso_shift
+    input accept, // Qualified by optional input_handshake, or external start pulse.
+    output first_step,
+    output reg init_en,
+    output reg add_en,
+    output reg step_en,
+    output reg reg_ex_en,
+    output reg output_en,
+    output reg final_re_en,
+    output reg piso_load,
+    output reg piso_shift,
+    output reg piso_hold,
+    output pm_write_en
 );
-    reg step_phase;
-    reg reg_ex_phase;
-    reg output_phase;
     reg [2:0] step_index;
     wire last_step;
+    // Reuse the registered commit phase. E1 initialization has priority
+    // inside PMU, so the former extra E1 write pulse was unnecessary.
+    assign pm_write_en = step_en;
 
-    // E1-E6 process trellis steps 3-8; E0 precomputes steps 1-2.
-    assign last_step = (step_index == 3'd5);
-    assign step_en = step_phase;
-    assign reg_ex_en = reg_ex_phase;
-    assign output_en = output_phase;
-    assign piso_shift = step_en && !last_step;
+    // E0 captures pair 1; E1 initializes its two reachable PM; E2/E3 through E14/E15
+    // are seven COMPARE/SELECT+ADD pairs for trellis steps 2-8.
+    assign last_step = (step_index == 3'd6);
+    assign first_step = (step_index == 3'd0);
+    // ADD/SELECT are registered one-hot phases. Consumers see FF outputs,
+    // rather than active/phase decoding on the datapath enable path.
+    // last_step is decoded before the enable FFs, one edge ahead of SELECT.
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            step_phase <= 1'b0;
-            reg_ex_phase <= 1'b0;
-            output_phase <= 1'b0;
+            init_en <= 1'b0;
+            add_en <= 1'b0;
+            step_en <= 1'b0;
+            reg_ex_en <= 1'b0;
+            output_en <= 1'b0;
+            final_re_en <= 1'b0;
+            piso_load <= 1'b1;
+            piso_shift <= 1'b0;
+            piso_hold <= 1'b0;
             step_index <= 3'd0;
         end else begin
-            reg_ex_phase <= step_phase;
-            // E7 finishes the sixth history update and arms output for E8.
-            output_phase <= reg_ex_phase && !step_phase;
+            init_en <= accept;
+            reg_ex_en <= step_en;
+            // E16 finishes history and arms the registered output for E17.
+            final_re_en <= step_en && last_step;
+            output_en <= final_re_en;
 
-            if (in_valid) begin
-                step_phase <= 1'b1;
+            // ADD -> SELECT; non-final SELECT -> next ADD.
+            step_en <= add_en;
+            add_en <= init_en || (step_en && !last_step);
+
+            // Predecode one-hot PISO operations into independent FFs.
+            // Shift at E2/E4/E6/E8/E10/E12. At E13 the final pair's BM
+            // is captured; PISO can preload again from E14 onward.
+            // These FFs differ from add_en/step_en and cannot simply merge
+            // with those markers because their final-step behavior differs.
+            piso_shift <= init_en || (step_en && (step_index < 3'd5));
+            piso_hold <= add_en && !last_step;
+            if (step_en && step_index == 3'd5)
+                piso_load <= 1'b1;
+
+            if (accept) begin
+                add_en <= 1'b0;
+                step_en <= 1'b0;
                 step_index <= 3'd0;
-            end else if (step_phase) begin
-                if (last_step)
-                    step_phase <= 1'b0;
-                else
-                    step_index <= step_index + 3'd1;
+                piso_load <= 1'b0;
+                piso_shift <= 1'b0;
+                piso_hold <= 1'b1;
+            end else if (step_en && !last_step) begin
+                step_index <= step_index + 3'd1;
             end
         end
     end

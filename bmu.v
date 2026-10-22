@@ -5,7 +5,6 @@ module bmu (
     output [1:0] bm_10,
     output [1:0] bm_01
 );
-    // The eight trellis branches share these four expected output pairs.
     assign bm_00 = {1'b0, data_in[1]} + {1'b0, data_in[0]};
     assign bm_11 = {1'b0, ~data_in[1]} + {1'b0, ~data_in[0]};
     assign bm_10 = {1'b0, ~data_in[1]} + {1'b0, data_in[0]};
