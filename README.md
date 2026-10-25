@@ -1,6 +1,16 @@
 # VLSI-viterbi
 viterbi decode for ppa ranking
 
+
+## Hướng dẫn chạy layout dùng genus và innovus 
+1. Vào thư mục synthesis bật terminal. Gõ genus chờ nó hiện chứ genus ở đầu tên thay vì tên máy.
+2. Gõ gedit genus.tcl và đổi tên top module. Ctrl+S và gõ source genus.tcl
+3. Chờ, xong và gõ exit.
+4. Vào thư mục output copy file netlist và sdc sang thư mục physical design.
+5. mở terminal ở thư mục physical design.
+6.Gõ innovus -stylus.
+7. Đọc hướng dẫn trong scripit.txt để chạy.
+8. Đọc các kết quả ppa trong folder report.
 ## Cách commit
 ##  Cách 1: Nộp bằng website GitHub (không cần cài Git)
 
