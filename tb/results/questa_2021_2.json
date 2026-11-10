@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "simulator": "Questa Sim-64 2021.2_1 (Linux/WSL)",
+  "benches": [
+    "tb_bmu",
+    "tb_acs",
+    "tb_pmu",
+    "tb_piso",
+    "tb_re",
+    "tb_controller",
+    "tb_iu",
+    "tb_ou",
+    "tb_r_sync",
+    "tb_psu",
+    "tb_top",
+    "tb_exhaustive",
+    "tb_options",
+    "tb_reset",
+    "tb_core_protocol"
+  ],
+  "compile_errors": 0,
+  "compile_warnings": 0,
+  "core_words": 65536,
+  "top_option_transfers": 262144,
+  "options": 4,
+  "vector_pairs": 1025,
+  "psu_metric_tuples": 4096,
+  "upload_only_copy_tested": true,
+  "rtl_sha256": {
+    "acs.v": "734da38ae1e140866eb58eec7c79f9b88d0e679ef34656343903ac66147e2169",
+    "bmu.v": "94e1c1666a7efcda08d1fb6e287e570b6b8c94f6f31163e9e92f4fdfa9a03179",
+    "controller.v": "63d0d67cb8ebd5f48879d155d586c603842b5593d2ca31863ece5762c64d6d4b",
+    "iu.v": "6904142d5f7850bd3fad99ed92ffa8901d5fefee7c781a5d0b65b367f3a740b7",
+    "ou.v": "1bbb7956b46e9828cc947521d0d99212b642a67f20a0bcf6270e8c2a9ab08c95",
+    "piso14_7.v": "31a70270d69237a96f4f1d680df7bfaaa2f35b06112ba133f3fa59babdb786c1",
+    "pmu.v": "e3d1f50010c8ea0417b4520e073b9f3d03f637233c950f5d02b8b4a8860d25cd",
+    "psu.v": "e3f9c359830f9cc830af422712bc8a214b4fa787946d54c194f11d650c0a8f53",
+    "re.v": "cb8315ff5c34b6d64b526b46e564f18569aabed6e7eb2522d7a9ec0728238250",
+    "r_sync.v": "2d0cd08215986371fe3006a26108a246be1e43cf76c4e7c91dafc2afc2acedbe",
+    "top.v": "c73222b546310fba58adc09a07975f88ed6a1f04c199af70a4c10c204f153cfe",
+    "viterbi.v": "f5b5f766fcfdd628512e04db1029aa17981071e2a271b5ec38981c0664821039"
+  }
+}

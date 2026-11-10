@@ -1,89 +1,150 @@
-# VLSI-viterbi
-viterbi decode for ppa ranking
+# Viterbi Decoder
 
+Hard-decision Viterbi decoder: **K=3, rate 1/2, generators (7,5)**.
+Each independent frame accepts 16 encoded bits and returns 8 decoded bits.
+Processing starts at state S0, MSB pair first, with a free final state.
+ACS ties choose predecessor A; final-state ties choose S0, S1, S2, then S3.
 
-## Hướng dẫn chạy layout dùng genus và innovus 
-1. Vào thư mục synthesis bật terminal. Gõ genus chờ nó hiện chứ genus ở đầu tên thay vì tên máy.
-2. Gõ gedit genus.tcl và đổi tên top module. Ctrl+S và gõ source genus.tcl
-3. Chờ, xong và gõ exit.
-4. Vào thư mục output copy file netlist và sdc sang thư mục physical design.
-5. mở terminal ở thư mục physical design.
-6.Gõ innovus -stylus.
-7. Đọc hướng dẫn trong scripit.txt để chạy.
-8. Đọc các kết quả ppa trong folder report.
-## Cách commit
-##  Cách 1: Nộp bằng website GitHub (không cần cài Git)
+The selected baseline uses 3-bit path metrics initialized to `[0,6,6,6]`,
+ordinary 4-bit ACS candidates, the original 8-bit RE histories, and the
+PMU-to-PSU pipeline. Core latency is **10 clocks**, with **II=9 clocks**.
+The PSU uses parallel comparisons.
 
-### A. Nếu bạn có quyền Write trong repo
+## Files
 
-1. Đăng nhập GitHub và mở repository do người quản lý cung cấp.
-2. Bấm vào **thư mục bài** (ví dụ `14_rca4/`).
-3. Bấm **Add file → Upload files**; kéo thả **ba file** `spec.txt`, `rca4.v` và `tb_rca4.v` vào trang. Đảm bảo đang upload ở **đường dẫn `14_rca4/`**.
-4. Nhập commit message, ví dụ `Add exercise 14 ripple-carry adder`.
-5. Chọn **Create a new branch for this commit and start a pull request** thay vì commit thẳng vào `main`. Đặt branch ví dụ `submit-14-rca4`.
-6. Bấm **Propose changes**, tiếp theo **Create pull request** (tên nút có thể thay đổi nhẹ).
-7. **Xóa `.gitkeep` trên cùng branch**: mở file `.gitkeep` trong branch vừa tạo, chọn menu xóa file, commit thay đổi vào branch đó. PR tự cập nhật. Nếu thao tác này khó, nhờ người quản lý xóa `.gitkeep` khi duyệt PR.
-8. Điền PR mô tả các đầu vào/đầu ra, cách kiểm tra và gửi cho người quản lý review.
+```text
+README.md
+rtl/                           # Synthesizable Verilog
+|-- top.v                      # IU -> core -> OU
+|-- iu.v                       # Handshake, credit, reset synchronizer
+|-- ou.v                       # Two-entry output buffer
+|-- viterbi.v                  # Core integration
+|-- controller.v               # Frame schedule
+|-- piso14_7.v                 # Input pair shift register
+|-- bmu.v                      # Branch metrics
+|-- acs.v                      # Add, compare, select
+|-- pmu.v                      # Path metrics
+|-- re.v                       # Survivor histories
+|-- psu.v                      # Final state and output selection
+|-- r_sync.v                   # Legacy standalone reset block
 
-### B. Nếu bạn KHÔNG có quyền Write trong repo
+tb/                            # Verification
+|-- README.md                  # Test plan
+|-- tb_*.sv, tb_top.v          # Unit and system benches
+|-- data/                      # Input/output vectors
+|-- results/                   # Questa result summary
+|-- scripts/
+    |-- run_questa.sh          # Linux regression runner
+    |-- generate_oracle.py     # Independent integer oracle
 
-1. Mở repo gốc → bấm **Fork** để tạo bản sao repo trong tài khoản của bạn.
-2. Vào fork của bạn và làm lại các thao tác upload trong mục A (chọn branch riêng trong fork).
-3. Mở PR về repo gốc: bấm **Contribute → Open pull request** hoặc **Compare & pull request**.
-4. Kiểm tra **base** là `main` của repo gốc, **compare/head** là branch trong fork của bạn rồi tạo PR.
-5. Người quản lý repo gốc sẽ review và merge. Bạn không cần quyền Write vào repo gốc.
-
-**Sửa file đã có:** vào đúng file, dùng biểu tượng chỉnh sửa (bút chì); commit thay đổi vào branch đang nộp. Nên giữ mỗi bài trong cùng một PR.
-
-## 4. Cách 2: Nộp bằng Git Bash / Terminal (biết `add`, `commit`, `push`)
-
-**Chuẩn bị:** cài Git. Nếu repo gốc cấp quyền Write thì clone repo gốc. Nếu không có Write, trên GitHub **Fork repo trước**, rồi clone URL của fork của chính bạn.
-
-```bash
-# Chỉ làm lần đầu: tải repo về máy (thay đường dẫn của repo mà bạn được phép push)
-git clone https://github.com/YOUR_USERNAME/rtl-verilog-35-exercises.git
-cd rtl-verilog-35-exercises
-
-# Tạo branch mới từ main cập nhật
-git switch main
-git pull origin main
-git switch -c submit-14-rca4
+pd_config/                     # LibreLane setup
+|-- core/                      # Core config and 5 ns SDC
+|-- full/                      # Full top config and 5 ns SDC
+|-- baseline_results/          # Measured area/timing summaries
+|-- run_librelane.sh           # Linux flow runner
+|-- report_metrics.py          # Result printer
+|-- genus.tcl                  # Optional Cadence Genus script
+`-- script_innovus.tcl         # Optional Cadence Innovus script
 ```
 
-Giờ mở thư mục `14_rca4/` trên máy và thêm `spec.txt`, `rca4.v`, `tb_rca4.v`, xóa `.gitkeep`. Rồi chạy:
+## Interface
+
+`top` uses `clk`, active-low `rst_n`, `in_valid/in_ready`,
+`codeword_in[15:0]`, `out_valid/out_ready`, and `data_out[7:0]`.
+Transfers occur at rising edges with both valid and ready high.
+Hold input valid/data until accepted; buffered output remains stable until read.
+
+Both parameters default to 1:
+
+| Parameter | Enabled | Disabled |
+|---|---|---|
+| `ENABLE_IU` | Handshake/credit and two-FF async-assert/sync-release reset synchronization | Both bypassed; source must provide valid synchronous reset and one-cycle start pulses only when ready |
+| `ENABLE_OU` | Two-entry output buffer with backpressure | Direct done/result pulse; sink must capture every pulse, normally with `out_ready=1` |
+
+With IU disabled, the source must also prevent output-buffer overflow. Enable
+both IU and OU for general backpressure. IU credit limits pending frames to two.
+Reset cancels pending work and output. With IU enabled, internal reset releases
+after two rising edges; first acceptance is no earlier than the third edge.
+With OU enabled, output valid appears 11 clocks after input acceptance; earliest
+output transfer is at clock 12. Stalls can increase transaction intervals.
+
+## Run simulation (Linux)
+
+Requirements: licensed Questa with `vlib`, `vmap`, `vlog`, `vsim` on `PATH`,
+Bash, and Python 3.10+. Set your license environment as required by your installation.
+From the repository root:
+
+Run all unit and system tests.
 
 ```bash
-git status                       # Xem file mới, file thay đổi, file đã xóa
-git add 14_rca4/                 # Stage tất cả thay đổi trong bài 14, gồm xóa .gitkeep
-git status                       # Kiểm tra lại trước khi commit
-git commit -m "Add exercise 14 RCA 4-bit"
-git push -u origin submit-14-rca4
+bash tb/scripts/run_questa.sh all
 ```
 
-Cuối cùng, mở link repo trên GitHub → **Compare & pull request** → mô tả rồi bấm **Create pull request**.
+Run only the block tests.
 
-**Các lệnh thường dùng:**
+```bash
+bash tb/scripts/run_questa.sh blocks
+```
 
-| Lệnh | Ý nghĩa |
-|---|---|
-| `git status` | Xem file đã đổi và đang ở branch nào |
-| `git pull origin main` | Lấy cập nhật mới nhất của nhánh main về máy (khi đang đứng ở main) |
-| `git switch -c ten-branch` | Tạo và chuyển sang branch riêng |
-| `git add 14_rca4/` | Chọn toàn bộ thay đổi của thư mục bài 14 |
-| `git commit -m "Noi dung"` | Lưu thay đổi thành một commit |
-| `git push -u origin ten-branch` | Gửi branch lên GitHub |
-| `git log --oneline -5` | Xem 5 commit gần nhất |
+Run one named test.
 
-**Nếu bị `Permission denied` khi push:** bạn không có quyền với repo gốc hoặc chưa đăng nhập; hãy dùng fork của mình và push lên fork (kiểm tra `git remote -v`).
+```bash
+bash tb/scripts/run_questa.sh tb_options
+```
 
-**Nếu `git commit` báo `nothing to commit`:** chưa thay đổi file, hoặc đang đứng sai thư mục, hoặc đã commit những thay đổi đó rồi. Chạy `git status`.
+The runner creates a fresh `experiment/tb_runs/questa_*` directory containing
+logs, waveforms, source hashes, and `summary.txt`. It runs tests sequentially,
+checks exit status and PASS markers, and returns nonzero on failure.
+All 15 benches passed on Linux Questa 2021.2_1, including the upload-only copy.
+See [the test plan](tb/README.md) for coverage and individual tests.
 
-**Nếu `git push` báo `rejected` / `non-fast-forward`:** có cập nhật mới trên branch ở GitHub. Đừng dùng `--force`; xem lại branch, fetch/pull và xử lý conflict hoặc hỏi người quản lý.
+## Run physical design (Linux)
 
-## 5. Người quản lý: Review và merge
+Activate a LibreLane environment containing its supported tools. The measured
+baseline used **LibreLane 3.0.14, Yosys 0.62, OpenROAD 2026-02-17**, and
+**sky130A / sky130_fd_sc_hd**, PDK revision
+`0fe599b2afb6708d281543108caf8310912f54af`.
+Install/select that PDK revision first; the runner uses the installed PDK and
+does not download or switch it automatically.
 
-1. Vào tab **Pull requests** của repository.
-2. Mở PR, xem tab **Files changed**.
-3. Xác minh chỉ một thư mục bài được cập nhật; đã có `spec.txt`, RTL và testbench đúng tên; đã xóa `.gitkeep`; `spec.txt` nêu đủ chức năng, I/O.
-4. Nếu ổn, chọn **Merge pull request**. Nếu chưa ổn, comment để người nộp chỉnh sửa trên branch cũ.
-5. Sau merge, thư mục trên `main` sẽ có đúng ba file bài tập. Không cần tạo thư mục khác.
+Point LibreLane to a PDK root that contains the selected sky130A revision.
+
+```bash
+export PDK_ROOT=/path/to/pdk_root
+```
+
+Run the core and full top flows. Use `core` or `full` to run one scope.
+
+```bash
+bash pd_config/run_librelane.sh both
+```
+
+Runs are created under `experiment/pd_runs/baseline_*`. Each run freezes RTL,
+config and SDC inputs before synthesis. Read `pd/<scope>/console.log`,
+`pd/<scope>/runs/baseline_5ns/final/metrics.json`, and the printed metric summary.
+Both configurations use **5 ns, hierarchy keep, DELAY 0**. Full enables IU/OU;
+core-only excludes both wrappers. Core SDC retains the measured falling-edge
+external-reset release assumption. Do not change exceptions just to hide failures.
+
+Genus and Innovus scripts are optional user-provided scripts. They require
+external library, LEF, and MMMC inputs; the measurements below use LibreLane.
+
+## Results
+
+Measured after routing at 5 ns across **9 corners** (nom/min/max RC x TT/SS/FF):
+
+| Scope | Synthesis area (um2) | Routed standard-cell area (um2) | Worst setup (ns) | Worst hold (ns) |
+|---|---:|---:|---:|---:|
+| Core `viterbi` | 7289.49 | 8379.29 | -0.012601 | +0.078179 |
+| Full `top` | 8805.95 | 10009.60 | +0.347571 | +0.169368 |
+
+Full setup/hold pass at 200 MHz. Core has one setup violation on external reset
+to an RE register; core register-to-register paths pass. Both have zero hold,
+slew and capacitance violations, zero route/Magic DRC and LVS errors, and one
+remaining fanout violation. The core exceeds the 7000 um2 target: this is the
+selected development baseline, not completed PPA signoff. Area excludes filler.
+
+Receipts: [core](pd_config/baseline_results/core.json),
+[full](pd_config/baseline_results/full.json).
+RTL simulation at a 5 ns clock does not establish physical timing closure.
+APB is not implemented. Formal, gate-level/SDF and hardware validation are not claimed.

@@ -1,0 +1,23 @@
+{
+  "DESIGN_NAME": "viterbi",
+  "VERILOG_FILES": [
+    "dir::../../rtl/viterbi.v",
+    "dir::../../rtl/controller.v",
+    "dir::../../rtl/piso14_7.v",
+    "dir::../../rtl/bmu.v",
+    "dir::../../rtl/acs.v",
+    "dir::../../rtl/pmu.v",
+    "dir::../../rtl/re.v",
+    "dir::../../rtl/psu.v"
+  ],
+  "CLOCK_PERIOD": 5.0,
+  "CLOCK_PORT": "clk",
+  "SYNTH_STRATEGY": "DELAY 0",
+  "SYNTH_ADDER_TYPE": "YOSYS",
+  "PL_TIMING_DRIVEN": true,
+  "RUN_POST_GRT_RESIZER_TIMING": true,
+  "PNR_SDC_FILE": "dir::viterbi_pnr.sdc",
+  "SIGNOFF_SDC_FILE": "dir::viterbi_signoff.sdc",
+  "PL_RESIZER_TIMING_OPTIMIZATIONS": 1,
+  "SYNTH_FLAT_TOP": 0
+}
