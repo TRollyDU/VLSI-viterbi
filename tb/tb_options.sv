@@ -28,7 +28,7 @@ module option_check #(
             previous_stall=OU && out_valid && !out_ready;
             held=data_out;
             if(out_valid && out_ready) begin
-                if(received>=sent || data_out !== expected[received])
+                if(received>=sent || data_out !== expected[received] || data_out[1:0] !== 2'b00)
                     $fatal(1,"Option oracle mode=%0d word=%h got=%h expected=%h sent=%0d",MODE,received,data_out,expected[received],sent);
                 received=received+1;
             end

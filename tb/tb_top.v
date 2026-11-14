@@ -1,8 +1,7 @@
 `timescale 1ns/1ps
 
-// Testbench doc input.txt, dua tung codeword vao top va so sanh voi output.txt.
-// Moi dong input.txt: 16 bit nhi phan.
-// Moi dong output.txt: 8 bit nhi phan.
+// Generated vectors: 64 six-bit payloads, tail 00, clean and one-bit errors.
+// input.txt: 16 encoded bits; output.txt: 8 decoded bits including the tail.
 module tb_top;
 
     reg         clk;
@@ -58,7 +57,7 @@ module tb_top;
                          total + 1, input_value);
                 fail = fail + 1;
             end
-            else if (data_out !== expected_value) begin
+            else if (data_out !== expected_value || data_out[1:0] !== 2'b00) begin
                 $display("FAIL vector %0d: input=%016b expected=%08b actual=%08b",
                          total + 1, input_value, expected_value, data_out);
                 fail = fail + 1;
@@ -121,7 +120,7 @@ module tb_top;
 
         $display("COMPARE SUMMARY: total=%0d pass=%0d fail=%0d",
                  total, pass, fail);
-        if (total == 0 || fail != 0)
+        if (total != 1088 || fail != 0)
             $finish(1);
         else
             $finish(0);

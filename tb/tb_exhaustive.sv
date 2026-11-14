@@ -11,6 +11,28 @@ module tb_exhaustive;
     reg [7:0] held;
     integer word, stage;
     viterbi dut(.*);
+    task check_candidate;
+        input [2:0] pm;
+        input [1:0] bm;
+        reg [3:0] sum;
+        begin
+            sum = {1'b0, pm} + {2'b00, bm};
+            if (sum > 4'd7 || (^sum) === 1'bx)
+                $fatal(1,"ACS candidate overflow/unknown word=%h pm=%d bm=%d",word,pm,bm);
+        end
+    endtask
+    always @(posedge clk) begin
+        if (rst_n && dut.step_en) begin
+            check_candidate(dut.pm_s0, dut.bm_00);
+            check_candidate(dut.pm_s1, dut.bm_11);
+            check_candidate(dut.pm_s2, dut.bm_10);
+            check_candidate(dut.pm_s3, dut.bm_01);
+            check_candidate(dut.pm_s0, dut.bm_11);
+            check_candidate(dut.pm_s1, dut.bm_00);
+            check_candidate(dut.pm_s2, dut.bm_01);
+            check_candidate(dut.pm_s3, dut.bm_10);
+        end
+    end
     initial begin
         $readmemh("oracle.hex",expected);
         repeat(3) @(negedge clk);
@@ -27,7 +49,8 @@ module tb_exhaustive;
                 @(posedge clk); #0.1;
                 if(stage==1 && word!=0) begin
                     if(done !== 1 || result !== expected[word-1])
-                        $fatal(1,"Pipelined PM/history mismatch word=%h got=%h expected=%h",word-1,result,expected[word-1]);
+                        $fatal(1,"Terminated S0 mismatch word=%h got=%h expected=%h",word-1,result,expected[word-1]);
+                    if(result[1:0] !== 2'b00) $fatal(1,"Decoded tail is not 00");
                     held=result;
                 end else if(done !== 0 || result !== held) begin
                     $fatal(1,"Core latency/hold word=%h stage=%0d",word,stage);
@@ -37,10 +60,10 @@ module tb_exhaustive;
         @(posedge clk); #0.1;
         if(done !== 0) $fatal(1,"Early final core result at E9");
         @(posedge clk); #0.1;
-        if(done !== 1 || result !== expected[65535]) $fatal(1,"Final core result");
+        if(done !== 1 || result !== expected[65535] || result[1:0] !== 2'b00) $fatal(1,"Final core result");
         @(posedge clk); #0.1;
         if(done !== 0) $fatal(1,"Done is not a pulse");
-        $display("PASS: independent integer oracle 65536/65536; PMU-to-PSU pipeline core E10 and continuous II9; changed word after E0; stable result");
+        $display("PASS: fixed-S0 integer oracle 65536/65536; tail 00; core E10 and continuous II9; changed word after E0; stable result");
         $finish;
     end
     initial begin #4000000; $fatal(1,"Core watchdog"); end

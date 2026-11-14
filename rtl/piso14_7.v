@@ -9,9 +9,7 @@ module piso14_7 (
     reg [13:0] shift_reg;
 
     always @(posedge clk) begin
-        if (!rst_n) begin
-            shift_reg <= 14'd0;
-        end else if (load) begin
+        if (load) begin
             shift_reg <= data_i;
         end else if (shift) begin
             shift_reg <= {shift_reg[11:0], 2'b00};

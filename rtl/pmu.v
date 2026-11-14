@@ -11,7 +11,7 @@ module pmu (
     output reg [2:0] pm_prev_s2,
     output reg [2:0] pm_prev_s3
 );
-    localparam [2:0] INITIAL_PENALTY = 3'd6;
+    localparam [2:0] INITIAL_PENALTY = 3'd4;
 
     always @(posedge clk) begin
         if (init) begin

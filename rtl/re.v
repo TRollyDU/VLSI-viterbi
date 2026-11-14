@@ -22,12 +22,7 @@ module re (
     assign next_history_s3 = dec_s3 ? {history_s3[6:0], 1'b1} : {history_s2[6:0], 1'b1};
 
     always @(posedge clk) begin
-        if (!rst_n) begin
-            history_s0 <= 8'd0;
-            history_s1 <= 8'd0;
-            history_s2 <= 8'd0;
-            history_s3 <= 8'd0;
-        end else if (update) begin
+        if (update) begin
             history_s0 <= next_history_s0;
             history_s1 <= next_history_s1;
             history_s2 <= next_history_s2;

@@ -24,7 +24,7 @@ set_clock_uncertainty -setup 0.15 $clocks
 set_clock_uncertainty -hold 0.05 $clocks
 set_clock_transition 0.10 $clocks
 
-set_max_fanout 10 [current_design]
+set_max_fanout 100 [current_design]
 set_max_transition 0.75 [current_design]
 set_max_capacitance 0.20 [current_design]
 set_timing_derate -early 0.95

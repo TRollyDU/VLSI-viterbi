@@ -10,10 +10,10 @@
     "dir::../../rtl/bmu.v",
     "dir::../../rtl/acs.v",
     "dir::../../rtl/pmu.v",
-    "dir::../../rtl/re.v",
-    "dir::../../rtl/psu.v"
+    "dir::../../rtl/re.v"
   ],
   "CLOCK_PERIOD": 5.0,
+  "MAX_FANOUT_CONSTRAINT": 100,
   "CLOCK_PORT": "clk",
   "SYNTH_STRATEGY": "DELAY 0",
   "SYNTH_ADDER_TYPE": "YOSYS",

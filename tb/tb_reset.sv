@@ -39,7 +39,13 @@ module reset_check #(
                 @(posedge clk); #0.1;
                 if(in_ready !== 0) $fatal(1,"Reset released before two edges mode=%0d",MODE);
                 @(posedge clk); #0.1;
-                if(in_ready !== 1) $fatal(1,"Reset readiness after R2 mode=%0d",MODE);
+                if(in_ready !== 0) $fatal(1,"Core reset register must wait through R2 mode=%0d",MODE);
+                @(posedge clk); #0.1;
+                if(in_ready !== 1) $fatal(1,"Reset readiness after R3 mode=%0d",MODE);
+            end else begin
+                if(in_ready !== 0) $fatal(1,"Bypass core reset warmup mode=%0d",MODE);
+                @(posedge clk); #0.1;
+                if(in_ready !== 1) $fatal(1,"Bypass readiness after R1 mode=%0d",MODE);
             end
             repeat(14) begin
                 @(posedge clk); #0.1;
@@ -65,7 +71,7 @@ module reset_check #(
             while(!out_valid && delay_count<20) begin
                 @(negedge clk); delay_count=delay_count+1;
             end
-            if(!out_valid || data_out !== expected[16'h1234]) $fatal(1,"Restart mode=%0d phase=%0d",MODE,phase);
+            if(!out_valid || data_out !== expected[16'h1234] || data_out[1:0] !== 2'b00) $fatal(1,"Restart/tail mode=%0d phase=%0d",MODE,phase);
             repeat(3) @(negedge clk);
             out_ready=0;
         end
@@ -80,7 +86,7 @@ module reset_check #(
             @(negedge clk); in_valid=0;
             reset_and_release();
         end
-        $display("PASS: reset mode=%0d phases E0..E12, R2 warmup, abort/restart, pending output/source",MODE);
+        $display("PASS: reset mode=%0d phases E0..E12, registered-core reset warmup, abort/restart, pending output/source",MODE);
         finished=1;
     end
 endmodule

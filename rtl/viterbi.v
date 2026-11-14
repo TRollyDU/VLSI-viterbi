@@ -5,15 +5,16 @@ module viterbi (
     input [15:0] word_in,
     output wire ready,
     output reg done,
-    output wire [7:0] result
+    output reg [7:0] result
 );
 
     wire step_en;
     wire re_en;
-    wire pm_capture_en;
     wire finish_en;
     wire accept;
+    wire piso_load;
     wire piso_shift;
+    reg core_reset_n;
 
     wire [1:0] queued_pair;
     wire [1:0] prefetch_pair;
@@ -31,10 +32,6 @@ module viterbi (
     wire [2:0] pm_s1;
     wire [2:0] pm_s2;
     wire [2:0] pm_s3;
-    reg [2:0] psu_pm_s0;
-    reg [2:0] psu_pm_s1;
-    reg [2:0] psu_pm_s2;
-    reg [2:0] psu_pm_s3;
     wire [2:0] next_s0;
     wire [2:0] next_s1;
     wire [2:0] next_s2;
@@ -48,28 +45,31 @@ module viterbi (
 
 
     wire [7:0] history_s0;
-    wire [7:0] history_s1;
-    wire [7:0] history_s2;
-    wire [7:0] history_s3;
 
     assign accept = start && ready;
+    // Idle preloading keeps reset/handshake logic off the PISO load path.
+    assign piso_load = !step_en;
+
+    // Register the core reset boundary; reset must span two rising edges.
+    always @(posedge clk) begin
+        core_reset_n <= rst_n;
+    end
 
     controller controller_ins (
         .clk(clk),
-        .rst_n(rst_n),
+        .rst_n(core_reset_n),
         .start(accept),
         .ready(ready),
         .step_en(step_en),
         .re_en(re_en),
-        .pm_capture_en(pm_capture_en),
         .finish_en(finish_en),
         .piso_shift(piso_shift)
     );
 
     piso14_7 piso (
         .clk(clk),
-        .rst_n(rst_n),
-        .load(accept),
+        .rst_n(core_reset_n),
+        .load(piso_load),
         .shift(piso_shift),
         .data_i(word_in[13:0]),
         .data_o(queued_pair)
@@ -132,12 +132,6 @@ module viterbi (
         if (step_en) begin
             decisions_q <= {decision_s3, decision_s2, decision_s1, decision_s0};
         end
-        if (pm_capture_en) begin
-            psu_pm_s0 <= pm_s0;
-            psu_pm_s1 <= pm_s1;
-            psu_pm_s2 <= pm_s2;
-            psu_pm_s3 <= pm_s3;
-        end
     end
 
     pmu pmu_ins (
@@ -156,39 +150,28 @@ module viterbi (
 
     re re_ins (
         .clk(clk),
-        .rst_n(rst_n),
+        .rst_n(core_reset_n),
         .update(re_en),
         .dec_s0(decisions_q[0]),
         .dec_s1(decisions_q[1]),
         .dec_s2(decisions_q[2]),
         .dec_s3(decisions_q[3]),
         .history_s0(history_s0),
-        .history_s1(history_s1),
-        .history_s2(history_s2),
-        .history_s3(history_s3)
-    );
-
-    // E9 captures final PMs before a new init; E10 uses the completed RE histories.
-    psu psu_ins (
-        .clk(clk),
-        .rst_n(rst_n),
-        .output_en(finish_en),
-        .pm_s0(psu_pm_s0),
-        .pm_s1(psu_pm_s1),
-        .pm_s2(psu_pm_s2),
-        .pm_s3(psu_pm_s3),
-        .history_s0(history_s0),
-        .history_s1(history_s1),
-        .history_s2(history_s2),
-        .history_s3(history_s3),
-        .data_o(result)
+        .history_s1(),
+        .history_s2(),
+        .history_s3()
     );
 
     always @(posedge clk) begin
-        if (!rst_n) begin
+        if (!core_reset_n) begin
             done <= 1'b0;
+            result <= 8'd0;
         end else begin
             done <= finish_en;
+            // Tail 00 terminates in S0; E10 samples the completed RE history.
+            if (finish_en) begin
+                result <= history_s0;
+            end
         end
     end
 

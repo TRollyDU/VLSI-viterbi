@@ -27,26 +27,51 @@ def decode(word):
                     new_histories[destination] = ((histories[state] << 1) | bit) & 255
         metrics, histories = new_metrics, new_histories
         survivor_max = max(survivor_max, *(cost for cost in metrics if cost is not None))
-    best = min(range(4), key=lambda state: metrics[state])
-    return histories[best], survivor_max, candidate_max, metrics[best]
+    return histories[0], survivor_max, candidate_max, metrics[0]
+
+
+def encode(frame):
+    """Encode eight source bits MSB first, starting in S0, using (7,5)."""
+    state = word = 0
+    for shift in range(7, -1, -1):
+        bit = (frame >> shift) & 1
+        m1, m2 = state >> 1, state & 1
+        pair = ((bit ^ m1 ^ m2) << 1) | (bit ^ m2)
+        word = (word << 2) | pair
+        state = (bit << 1) | m1
+    return word, state
 
 
 def main():
-    data = Path(__file__).resolve().parents[1] / "data"
     output = Path(sys.argv[1])
     output.mkdir(parents=True, exist_ok=True)
     answers = []
-    max_survivor = max_candidate = max_final_minimum = 0
+    max_survivor = max_candidate = max_final_s0 = 0
+    codebook = [encode(payload << 2)[0] for payload in range(64)]
     for word in range(65536):
-        answer, survivor, candidate, final_minimum = decode(word)
+        answer, survivor, candidate, final_s0 = decode(word)
+        assert answer & 3 == 0, (word, answer)
+        assert encode(answer)[1] == 0
+        # Independent full codebook search checks optimality, without trellis helpers.
+        distance = min((word ^ encoded).bit_count() for encoded in codebook)
+        assert (word ^ encode(answer)[0]).bit_count() == distance == final_s0
         answers.append(answer)
         max_survivor = max(max_survivor, survivor)
         max_candidate = max(max_candidate, candidate)
-        max_final_minimum = max(max_final_minimum, final_minimum)
+        max_final_s0 = max(max_final_s0, final_s0)
     (output / "oracle.hex").write_text("".join(f"{value:02x}\n" for value in answers), encoding="ascii")
-    inputs = [int(line, 2) for line in (data / "input.txt").read_text().splitlines() if line.strip()]
-    expected = [int(line, 2) for line in (data / "output.txt").read_text().splitlines() if line.strip()]
-    assert len(inputs) == len(expected) == 1025
+    inputs, expected = [], []
+    for payload in range(64):
+        frame = payload << 2
+        encoded, final_state = encode(frame)
+        assert final_state == 0
+        # One clean frame and each of the sixteen single-bit channel errors.
+        for mask in [0] + [1 << bit for bit in range(16)]:
+            inputs.append(encoded ^ mask)
+            expected.append(frame)
+    assert len(inputs) == len(expected) == 1088
+    (output / "input.txt").write_text("".join(f"{v:016b}\n" for v in inputs), encoding="ascii")
+    (output / "output.txt").write_text("".join(f"{v:08b}\n" for v in expected), encoding="ascii")
     mismatches = sum(answers[word] != value for word, value in zip(inputs, expected))
     result = {
         "words": 65536,
@@ -54,9 +79,13 @@ def main():
         "vector_mismatches_against_oracle": mismatches,
         "max_finite_survivor": max_survivor,
         "max_finite_candidate": max_candidate,
-        "max_final_minimum": max_final_minimum,
+        "max_final_s0": max_final_s0,
         "initial_state": 0,
-        "endpoint": "free; minimum metric; lowest state wins ties",
+        "endpoint": "fixed S0; six payload bits followed by tail 00",
+        "output": "eight decoded bits including two tail zeros",
+        "codebook_optimality_checks": 65536,
+        "clean_payloads": 64,
+        "single_bit_error_vectors": 1024,
         "acs_tie": "lowest predecessor state (A)",
     }
     (output / "oracle_summary.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

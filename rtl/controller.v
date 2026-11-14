@@ -5,14 +5,12 @@ module controller (
     output wire ready,
     output wire step_en,
     output wire re_en,
-    output wire pm_capture_en,
     output wire finish_en,
     output wire piso_shift
 );
     localparam [2:0] LAST_STEP = 3'd7;
 
     reg step_phase;
-    reg re_phase;
     reg finish_phase;
     reg output_phase;
     reg [2:0] step_index;
@@ -21,20 +19,17 @@ module controller (
     assign last_step = (step_index == LAST_STEP);
     assign ready = rst_n && !step_phase;
     assign step_en = step_phase;
-    assign re_en = re_phase;
-    assign pm_capture_en = finish_phase;
+    assign re_en = (step_phase && (|step_index)) || finish_phase;
     assign finish_en = output_phase;
     assign piso_shift = step_phase && !last_step;
 
     always @(posedge clk) begin
         if (!rst_n) begin
             step_phase <= 1'b0;
-            re_phase <= 1'b0;
             finish_phase <= 1'b0;
             output_phase <= 1'b0;
             step_index <= 3'd0;
         end else begin
-            re_phase <= step_phase;
             finish_phase <= step_phase && last_step;
             output_phase <= finish_phase;
             if (start) begin
