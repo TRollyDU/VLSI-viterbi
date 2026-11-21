@@ -9,7 +9,7 @@ The current development RTL implements [FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md).
 Historical tail-00/fixed-S0 and IU/OU receipts do not describe this interface.
 Current validation and physical results belong in verification/; no new PPA
 baseline selection is implied by implementation or by flow completion.
-See the [latest RTL validation report](verification/acs_wrapper_20261121.md)
+See the [latest RTL validation report](verification/merge_top_20261121.md)
 and the [preceding revision's PPA report](verification/smu_pulse_20261121.md).
 
 ## Interface
@@ -42,7 +42,6 @@ and eight updates; only control and output registers need reset.
 ```text
 rtl/
 |-- viterbi_top.v
-|-- viterbi.v
 |-- r_sync.v
 |-- controller.v
 |-- piso14_7.v
@@ -69,10 +68,19 @@ Latest canonical RTL validation (2026-11-21): **all nine Questa benches PASS**,
 including all 65,536 received words, 256 clean information bytes and fixed-data
 control/reset scenarios. Strict Verilator --Wall is clean; RTL/TB compilation
 has zero errors/warnings. E10/II11 is retained. The new `acs` module wraps the
-two original `butterfly` instances; `viterbi` connects only to `acs` for ACS
+two original `butterfly` instances; `viterbi_top` connects only to `acs` for ACS
 processing. This hierarchy supports later macro integration.
 
-No layout was rerun for this wrapper revision. Earlier PPA and the separate
+The former `viterbi` core is merged into `viterbi_top`; only one integration
+module remains. Reset synchronization and the registered core-reset boundary
+are retained. The legacy `pd_config/core/` configuration now targets the same
+integrated top, including r_sync; it no longer measures a separate core.
+
+Latest tested source snapshot: `smu_questa_RBfHVCxE`. Design-unit coverage is
+100%; per-instance coverage is 93.50%. Source hashes and results are recorded
+in [the validation receipt](verification/merge_top_20261121.json).
+
+No layout was rerun for this merged-top revision. Earlier PPA and the separate
 C|SA experiments are historical/trial evidence, not PPA for this RTL revision.
 
 Use licensed Questa in Linux/WSL with Python 3.10+ and Bash. All nine benches

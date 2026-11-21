@@ -18,15 +18,15 @@ module tb_viterbi_exhaustive;
     endtask
 
     always @(posedge clk) begin
-        if (dut.core_ins.core_reset_n && dut.core_ins.step_en) begin
-            candidate_bound(dut.core_ins.pm_s0, dut.core_ins.bm_00);
-            candidate_bound(dut.core_ins.pm_s1, 2'd2 - dut.core_ins.bm_00);
-            candidate_bound(dut.core_ins.pm_s0, 2'd2 - dut.core_ins.bm_00);
-            candidate_bound(dut.core_ins.pm_s1, dut.core_ins.bm_00);
-            candidate_bound(dut.core_ins.pm_s2, dut.core_ins.bm_10);
-            candidate_bound(dut.core_ins.pm_s3, 2'd2 - dut.core_ins.bm_10);
-            candidate_bound(dut.core_ins.pm_s2, 2'd2 - dut.core_ins.bm_10);
-            candidate_bound(dut.core_ins.pm_s3, dut.core_ins.bm_10);
+        if (dut.core_reset_n && dut.step_en) begin
+            candidate_bound(dut.pm_s0, dut.bm_00);
+            candidate_bound(dut.pm_s1, 2'd2 - dut.bm_00);
+            candidate_bound(dut.pm_s0, 2'd2 - dut.bm_00);
+            candidate_bound(dut.pm_s1, dut.bm_00);
+            candidate_bound(dut.pm_s2, dut.bm_10);
+            candidate_bound(dut.pm_s3, 2'd2 - dut.bm_10);
+            candidate_bound(dut.pm_s2, 2'd2 - dut.bm_10);
+            candidate_bound(dut.pm_s3, dut.bm_10);
         end
     end
 

@@ -6,7 +6,7 @@ endpoint ties prefer S0/S1/S2/S3. Top is `viterbi_top` with exactly `clk`, `rstn
 `viterbi_enable`, `input_data[15:0]`, `output_data[7:0]`, `output_done`.
 
 Nine SystemVerilog benches: seven leaf-block benches and two top-level benches.
-The `viterbi` integration is exercised through the exact public top interface.
+The merged `viterbi_top` integration is exercised through its public interface.
 No IU/OU options or old architecture experiments are in the active suite.
 
 | ID | Bench | Checked behavior |
