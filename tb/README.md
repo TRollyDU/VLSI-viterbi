@@ -1,115 +1,58 @@
-# Test Plan
+# Test plan: pulse interface, free endpoint
 
-Run from the repository root with Linux Questa and Python 3.10+:
+Contract: [FUNCTIONAL_SPEC.md](../FUNCTIONAL_SPEC.md), K=3, (7,5), initial S0,
+eight information bits, no required tail, minimum-metric endpoint. ACS tie A;
+endpoint ties prefer S0/S1/S2/S3. Top is `viterbi_top` with exactly `clk`, `rstn`,
+`viterbi_enable`, `input_data[15:0]`, `output_data[7:0]`, `output_done`.
 
-Run the complete regression.
+Nine SystemVerilog benches: seven leaf-block benches and two top-level benches.
+The `viterbi` integration is exercised through the exact public top interface.
+No IU/OU options or old architecture experiments are in the active suite.
+
+| ID | Bench | Checked behavior |
+|---|---|---|
+| B01 | `tb_r_sync.sv` | Asynchronous assertion, two-clock release and reassertion |
+| B02 | `tb_controller.sv` | E0-E10 enables, exactly eight metric/history updates, ignore busy starts E1-E10, reset priority |
+| B03 | `tb_piso.sv` | All 16,384 stored words, pair order, load priority, hold and zero flush |
+| B04 | `tb_bmu.sv` | All four input pairs; reconstruct metrics from parity/carries and compare against independent Hamming counts |
+| B05 | `tb_butterfly.sv` | All 192 PM3/Hamming tuples, decisions, predecessor-A ties, sums; frame bounds checked separately |
+| B06 | `tb_pmu.sv` | All 4,096 metric words, init `[0,4,4,4]` priority, update and hold |
+| B07 | `tb_smu.sv` | Independent history model, eight-update flush, 4,096 final metric tuples, all endpoint/tie choices, result hold/reset |
+| N01 | `tb_viterbi_exhaustive.sv` | All 65,536 received words plus 256 clean information bytes, E10, adjacent frames II11, changed input after accept, all eight widened candidate bounds, result hold and done pulse |
+| N02 | `tb_viterbi_control.sv` | Fixed codeword **E2F6 -> A7** throughout: idle, busy enable at every E1-E10, immediate E11 restart, reset E0-E10, enable during R1-R3 warmup, no queued/ghost results |
+
+The integer oracle uses true unreachable states and ascending-predecessor ties.
+An independent search of all 256 encoded bytes checks minimum Hamming distance
+for every received word. A separate init-bound audit compares the finite penalty
+4 against the integer oracle over all 65,536 words; this is mathematical evidence,
+not RTL simulation. Channel errors are tested against the decoder oracle: arbitrary
+noise is not guaranteed to recover the original source byte.
+
+## Commands
+
+In a licensed Linux/WSL Questa environment, from this folder's parent:
 
 ```bash
 bash tb/scripts/run_questa.sh all
-```
-
-Run only the standalone block tests.
-
-```bash
 bash tb/scripts/run_questa.sh blocks
+bash tb/scripts/run_questa.sh exhaustive
+bash tb/scripts/run_questa.sh control
 ```
 
-Run the core and top system tests.
+The runner creates a fresh `experiment/tb_runs/smu_questa_*` directory and freezes
+RTL, all nine TBs, scripts and oracle. It runs sequentially, requires simulator
+success plus PASS markers and no fatal/error, and saves source hashes, UCDB,
+merged DUT statement/branch/condition/expression/FSM coverage and HTML reports.
+Functional PASS and code coverage percentages are separate results; report any
+uncovered code explicitly. No SVA or UVM is required.
 
-```bash
-bash tb/scripts/run_questa.sh system
-```
+Hold external reset low across at least two rising edges. After release, R1/R2
+release the synchronizer, R3 releases core readiness, and R4 is the earliest
+acceptance. Reset cancels the current frame. Inputs during busy are discarded;
+no enable queue exists. A result is registered at E10, with a one-cycle done
+pulse. The next accepted frame is no earlier than E11. Temporal scenarios are
+directed; this is not a formal proof of all possible timing sequences.
 
-Run one named bench.
-
-```bash
-bash tb/scripts/run_questa.sh tb_acs
-```
-
-All simulations use a 5 ns clock where applicable. Tests are self-checking;
-`$fatal` or a missing completion marker fails the runner. Work libraries, logs,
-WLF files, oracle and hashes stay in fresh `experiment/tb_runs/questa_*` folders.
-No simulator outputs are written inside the source folders.
-
-`all` runs every bench listed below: 9 unit benches and 5 core/top benches.
-It covers every 16-bit input word, all four top options, reset at E0-E12,
-valid/ready stalls, credit limits, output hold, busy starts, and E10/II9.
-The timed transaction sequences are directed or seeded; they are not an
-exhaustive proof of every possible multi-frame timing sequence.
-
-## Unit coverage
-
-| ID | Bench | Cases checked |
-|---|---|---|
-| U01 | `tb_bmu` | All 4 received pairs, four Hamming distances |
-| U02 | `tb_acs` | 676 PM/BM tuples with both sums <=7, 3-bit compare, tie A; 348 overflow tuples excluded from the contract; BM=3 included within bounds |
-| U03 | `tb_pmu` | All 4096 metric words, init `[0,4,4,4]`, init over update, hold |
-| U04 | `tb_piso` | All 16384 input words, pair order, load over shift, hold, zero flush, reset-independent load |
-| U05 | `tb_re` | 4096 seeded model steps, compare four histories after eight-update flush, all decision bits, hold and reset-independent updates |
-| U06 | `tb_controller` | Exact E0..E10 phase schedule, repeated frames, reset priority |
-| U07 | `tb_iu` | Enabled/bypass paths, two-edge release, credit limits, busy gating, concurrent accept/transfer, reset |
-| U08 | `tb_ou` | Two-slot FIFO scoreboard, push/pop together at occupancy 1 and 2, stall hold/order, reset and bypass |
-| U09 | `tb_r_sync` | Retained standalone block: async assertion, R1/R2 release, bypass; top uses IU's integrated synchronizer |
-
-U10 / tb_psu is retired: the user selected tail-00 termination and removed PSU.
-
-## Core and top coverage
-
-| ID | Bench | Cases checked |
-|---|---|---|
-| S01 | `tb_top` | All 64 six-bit payloads with tail 00: clean plus each single-bit channel error, 1088 generated input/output pairs in raw bypass mode |
-| S02 | `tb_exhaustive` | All 65536 core received words against fixed-S0 integer oracle; tail 00, exact E10 latency, continuous II9, frame overlap, input change after accept, result hold and done pulse |
-| S03 | `tb_options` | All 4 IU/OU combinations x 65536 words = 262144 output transfers; no-stall II9 window, long/toggling sink stalls, held valid, credit <=2, output hold and order |
-| S04 | `tb_reset` | All 4 options, reset E0..E12, registered-core reset warmup (IU R3 / bypass R1), cancellation/restart, pending source/output, no ghost result |
-| S05 | `tb_core_protocol` | 256 seeded frames, start pulses while busy ignored, input latching, E10 result and one-cycle done |
-
-The frame contract is 6 payload bits followed by tail 00, encoded into 16 bits.
-The output contains all 8 decoded bits, so data_out[1:0] must be 00. Tail zeros
-apply to the source frame, not directly to the received encoded word.
-
-Oracle generation enumerates every 16-bit received word with unlimited integer
-metrics and unreachable states, using encoder equations for (7,5). It preserves
-predecessor-A ties and always selects the final S0 history. A full search of the
-64 legal encoded frames independently checks the decoded word's minimum Hamming
-distance for all 65536 received words. It does not reuse finite-width RTL ACS
-arithmetic. The runner generates oracle.hex, input.txt and output.txt inside
-each fresh run. tb/data's older 1025 vectors are retained as historical inputs
-and are not used by the current regression.
-
-IU bypass requires externally synchronous reset and source capacity discipline.
-OU bypass requires a sink that captures every result pulse. Tests obey these
-contracts; invalid overflows or arbitrary asynchronous reset release in bypass
-are not promised to work. X/Z inputs and arbitrary electrical timing violations
-are outside the binary-word contract. Exhaustive words do not mean exhaustive
-all possible temporal sequences; this suite is not formal or gate-level/SDF proof.
-
-Fixed random seeds are declared in the relevant benches for reproducibility.
-
-## Selected resetless baseline - 2026-11-14
-
-PISO and RE data registers are intentionally not reset. PISO becomes defined
-after load; RE history is checked after eight updates flush unknown prior bits.
-Core result/valid/control and IU/OU remain reset. Integration reset tests still
-check all E0..E12 cancellation/restart phases and prohibit ghost transactions.
-RE remains the original 8-bit-history implementation; RE6 is experimental.
-
-All 14 benches passed on WSL Questa Sim 2021.2_1 with zero compile errors and
-warnings in `experiment/tb_runs/reset_re6_resetless_zhSs7qND/`. Selected RTL and
-all bench hashes match this run. Current selection is recorded in
-`verification/selected_baseline_20261114_resetless.json`; the earlier tail-00
-and reset/RE6 experiment receipts remain historical evidence.
-
-## Historical result
-
-Before the tail-00 change, all 15 benches passed on Linux Questa Sim 2021.2_1, including an isolated copy
-containing only the public folders and root README. Compilation reported zero
-errors/warnings. See [the result receipt](results/questa_2021_2.json). This records
-RTL simulation of the old free-endpoint design, not gate-level or physical
-timing validation. Current-change evidence is recorded separately in
-verification/tail00_s0_20261114.md.
-
-Current ACS3/init-4/controller selection: only `tb_exhaustive` was run for this revision; PASS 65,536/65,536 on WSL Questa 2021.2_1, including widened candidate-bound checks. Updated unit benches have not been rerun. See `verification/acs3_controller_20261114_01.md`.
-
-Current reset-FF revision: four executed benches are `tb_exhaustive`, `tb_core_protocol`, `tb_reset`, and `tb_options`; all PASS. Core protocol additionally checks the two-edge reset capture/abort, one-edge sampled release, no ghost result and restart across 11 phases. See `verification/reset_ff_20261114_01.md`.
-
-User-adopted baseline: registered core reset, 2026-11-14. Current selection ledger: `verification/selected_baseline_20261114_reset_ff.json`. Four executed benches are listed above; promotion did not rerun tests.
+The old TBs and runner are preserved under
+`experiment/smu_pulse_20261121/before/tb/` and `retired_tb/`. Historical receipts
+remain unchanged; none are relabeled as evidence for this interface.

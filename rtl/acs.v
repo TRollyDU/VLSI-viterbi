@@ -1,21 +1,36 @@
 module acs (
-    input [1:0] bm_a,
-    input [1:0] bm_b,
-    input [2:0] pm_prev_a,
-    input [2:0] pm_prev_b,
-    output wire [2:0] pm_new,
-    output wire dec_out
+    input [2:0] pm_s0,
+    input [2:0] pm_s1,
+    input [2:0] pm_s2,
+    input [2:0] pm_s3,
+    input [1:0] bm_00,
+    input [1:0] bm_10,
+    output wire [2:0] next_s0,
+    output wire [2:0] next_s1,
+    output wire [2:0] next_s2,
+    output wire [2:0] next_s3,
+    output wire decision_s0,
+    output wire decision_s1,
+    output wire decision_s2,
+    output wire decision_s3
 );
-    wire [2:0] candidate_a;
-    wire [2:0] candidate_b;
-    wire [2:0] selected_candidate;
-    wire choose_b;
+    butterfly butterfly_02 (
+        .pm_a(pm_s0),
+        .pm_b(pm_s1),
+        .metric(bm_00),
+        .next_0(next_s0),
+        .next_1(next_s2),
+        .dec_0(decision_s0),
+        .dec_1(decision_s2)
+    );
 
-    assign candidate_a = pm_prev_a + {1'b0, bm_a};
-    assign candidate_b = pm_prev_b + {1'b0, bm_b};
-    assign choose_b = (candidate_b < candidate_a);
-    assign selected_candidate = choose_b ? candidate_b : candidate_a;
-    // The eight-step PMU init-4 schedule keeps both candidates within 0..7.
-    assign pm_new = selected_candidate;
-    assign dec_out = choose_b;
+    butterfly butterfly_13 (
+        .pm_a(pm_s2),
+        .pm_b(pm_s3),
+        .metric(bm_10),
+        .next_0(next_s1),
+        .next_1(next_s3),
+        .dec_0(decision_s1),
+        .dec_1(decision_s3)
+    );
 endmodule

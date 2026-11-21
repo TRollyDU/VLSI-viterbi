@@ -2,40 +2,49 @@
 set -Eeuo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 selection=${1:-all}
-if (( $# > 1 )); then echo "Usage: bash tb/scripts/run_questa.sh [all|blocks|system|tb_name]" >&2; exit 2; fi
-blocks=(tb_bmu tb_acs tb_pmu tb_piso tb_re tb_controller tb_iu tb_ou tb_r_sync)
-system=(tb_top tb_exhaustive tb_options tb_reset tb_core_protocol)
+blocks=(tb_r_sync tb_controller tb_piso tb_bmu tb_butterfly tb_pmu tb_smu)
+system=(tb_viterbi_exhaustive tb_viterbi_control)
 case "$selection" in
- all) benches=("${blocks[@]}" "${system[@]}");;
- blocks) benches=("${blocks[@]}");;
- system) benches=("${system[@]}");;
- *) benches=(); for bench in "${blocks[@]}" "${system[@]}"; do [[ "$selection" != "$bench" ]] || benches+=("$bench"); done
-    if (( ${#benches[@]} == 0 )); then echo "Unknown bench: $selection" >&2; exit 2; fi;;
+    all) benches=("${blocks[@]}" "${system[@]}");;
+    blocks) benches=("${blocks[@]}");;
+    exhaustive) benches=(tb_viterbi_exhaustive);;
+    control) benches=(tb_viterbi_control);;
+    *) benches=(); for bench in "${blocks[@]}" "${system[@]}"; do
+        [[ "$selection" != "$bench" ]] || benches+=("$bench")
+       done
+       (( ${#benches[@]} > 0 )) || { echo "Unknown test: $selection" >&2; exit 2; };;
 esac
-for tool in python3 vlib vmap vlog vsim; do command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 2; }; done
+for tool in python3 vlib vmap vlog vsim vcover; do command -v "$tool" >/dev/null; done
 mkdir -p "$root/experiment/tb_runs"
-run=$(mktemp -d "$root/experiment/tb_runs/questa_XXXXXXXX")
+run=$(mktemp -d "$root/experiment/tb_runs/smu_questa_XXXXXXXX")
+mkdir "$run/rtl" "$run/tb"
+cp "$root"/rtl/*.v "$run/rtl/"
+cp "$root"/tb/*.sv "$run/tb/"
+cp "$root/tb/scripts/generate_oracle.py" "$run/"
+cp "$root/tb/scripts/run_questa.sh" "$run/"
+printf '%s\n' "$run" > "$root/experiment/tb_runs/latest_smu_run.txt"
 cd "$run"
-printf 'Run directory: %s\n' "$run"
+printf 'RUN %s\n' "$run"
 vsim -version > version.txt 2>&1
-python3 "$root/tb/scripts/generate_oracle.py" "$run" > oracle_generation.log
+python3 -B generate_oracle.py "$run" > oracle_generation.log
+sha256sum rtl/*.v tb/*.sv generate_oracle.py run_questa.sh oracle.hex clean_codewords.hex > source_sha256.txt
 vmap -c > library.log 2>&1
 vlib work >> library.log 2>&1
 vmap -modelsimini modelsim.ini work "$run/work" >> library.log 2>&1
-rtl=("$root"/rtl/*.v)
-tests=(); for bench in "${benches[@]}"; do
- file="$root/tb/$bench.sv"; [[ -f "$file" ]] || file="$root/tb/$bench.v"; tests+=("$file")
-done
-sha256sum "${rtl[@]}" "${tests[@]}" "$root/tb/scripts/run_questa.sh" "$root/tb/scripts/generate_oracle.py" "$run/input.txt" "$run/output.txt" "$run/oracle.hex" > source_sha256.txt
-vlog -modelsimini modelsim.ini -sv -work work "${rtl[@]}" "${tests[@]}" > compile.log 2>&1
+vlog -modelsimini modelsim.ini +cover=bcesf -work work rtl/*.v > compile_rtl.log 2>&1
+vlog -modelsimini modelsim.ini -sv -work work tb/*.sv > compile_tb.log 2>&1
 for bench in "${benches[@]}"; do
- vsim -c -modelsimini modelsim.ini -onfinish exit -wlf "$bench.wlf" -l "$bench.log" "work.$bench"    -do 'run -all; quit -f -code 0' > "$bench.console.log" 2>&1
- if grep -Eiq '(^|# +)(Fatal:|Error:|FAIL|\*\* +(Error|Fatal):)' "$bench.log"; then echo "FAIL: $bench (see $run/$bench.log)" >&2; exit 1; fi
- if [[ "$bench" == tb_top ]]; then
-  grep -q 'COMPARE SUMMARY: total=1088 pass=1088 fail=0' "$bench.log"
- else
-  grep -q 'PASS:' "$bench.log"
- fi
- printf 'PASS: %s\n' "$bench" | tee -a summary.txt
+    vsim -c -modelsimini modelsim.ini -coverage -voptargs=+acc -onfinish exit \
+        -wlf "$bench.wlf" -l "$bench.log" "work.$bench" \
+        -do "coverage save -onexit $bench.ucdb; run -all; quit -f -code 0" > "$bench.console.log" 2>&1
+    if grep -Eiq '(^|# +)(Fatal:|Error:|FAIL|\*\* +(Error|Fatal):)' "$bench.log"; then
+        echo "FAIL $bench: $run/$bench.log" >&2; exit 1
+    fi
+    grep -q 'PASS:' "$bench.log"
+    printf 'PASS: %s\n' "$bench" | tee -a summary.txt
 done
+vcover merge coverage.ucdb ./*.ucdb > coverage_merge.log 2>&1
+vcover report -details -code bcesf coverage.ucdb > coverage.txt 2>&1
+vcover report -bydu -details -code bcesf coverage.ucdb > coverage_by_design_unit.txt 2>&1
+vcover report -html -htmldir coverage_html -code bcesf coverage.ucdb > coverage_html.log 2>&1
 printf 'PASS: %s (%s benches)\n' "$selection" "${#benches[@]}" | tee -a summary.txt

@@ -1,6 +1,5 @@
 module piso14_7 (
     input clk,
-    input rst_n,
     input load,
     input shift,
     input [13:0] data_i,

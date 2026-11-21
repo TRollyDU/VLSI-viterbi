@@ -1,14 +1,11 @@
 module bmu (
     input [1:0] data_in,
-    output wire [1:0] bm_00,
-    output wire [1:0] bm_11,
-    output wire [1:0] bm_10,
-    output wire [1:0] bm_01
+    output wire parity,
+    output wire carry_00,
+    output wire carry_10
 );
-
-    assign bm_00 = {1'b0, data_in[1]} + {1'b0, data_in[0]};
-    assign bm_11 = {1'b0, ~data_in[1]} + {1'b0, ~data_in[0]};
-    assign bm_10 = {1'b0, ~data_in[1]} + {1'b0, data_in[0]};
-    assign bm_01 = {1'b0, data_in[1]} + {1'b0, ~data_in[0]};
+    assign parity = data_in[1] ^ data_in[0];
+    assign carry_00 = data_in[1] & data_in[0];
+    assign carry_10 = ~data_in[1] & data_in[0];
 endmodule
 

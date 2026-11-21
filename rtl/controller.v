@@ -17,7 +17,7 @@ module controller (
     wire last_step;
 
     assign last_step = (step_index == LAST_STEP);
-    assign ready = rst_n && !step_phase;
+    assign ready = rst_n && !step_phase && !finish_phase && !output_phase;
     assign step_en = step_phase;
     assign re_en = (step_phase && (|step_index)) || finish_phase;
     assign finish_en = output_phase;
@@ -32,7 +32,7 @@ module controller (
         end else begin
             finish_phase <= step_phase && last_step;
             output_phase <= finish_phase;
-            if (start) begin
+            if (start && ready) begin
                 step_phase <= 1'b1;
                 step_index <= 3'd0;
             end else if (step_phase) begin
