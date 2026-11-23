@@ -11,10 +11,11 @@ module viterbi_top (
     wire core_start;
     reg core_done;
     wire step_en;
+    wire sample_en;
     wire ready;
     wire re_en;
     wire finish_en;
-    wire accept;
+    wire smu_select_en;
     wire piso_load;
     wire piso_shift;
     reg core_reset_n;
@@ -46,7 +47,7 @@ module viterbi_top (
     reg [3:0] decisions_q;
 
 
-    assign core_start = viterbi_enable && reset_n;
+    assign core_start = viterbi_enable && reset_n && ready;
     assign output_done = core_done && reset_n;
 
     r_sync reset_ins (
@@ -55,9 +56,6 @@ module viterbi_top (
         .reset_n(reset_n)
     );
 
-    assign accept = core_start && ready;
-    // Idle preloading keeps reset/handshake logic off the PISO load path.
-    assign piso_load = !step_en;
 
     // Register the core reset boundary; reset must span two rising edges.
     always @(posedge clk) begin
@@ -70,8 +68,11 @@ module viterbi_top (
         .start(core_start),
         .ready(ready),
         .step_en(step_en),
+        .sample_en(sample_en),
         .re_en(re_en),
         .finish_en(finish_en),
+        .select_en(smu_select_en),
+        .piso_load(piso_load),
         .piso_shift(piso_shift)
     );
 
@@ -83,7 +84,7 @@ module viterbi_top (
         .data_o(queued_pair)
     );
 
-    assign prefetch_pair = accept ? input_data[15:14] : queued_pair;
+    assign prefetch_pair = sample_en ? input_data[15:14] : queued_pair;
     bmu bmu_ins (
         .data_in(prefetch_pair),
         .parity(bm_parity_next),
@@ -92,9 +93,11 @@ module viterbi_top (
     );
     // Two metrics share parity; decode both carries before the pipeline FFs.
     always @(posedge clk) begin
-        bm_parity <= bm_parity_next;
-        bm_00_carry <= bm_00_carry_next;
-        bm_10_carry <= bm_10_carry_next;
+        if (sample_en || step_en) begin
+            bm_parity <= bm_parity_next;
+            bm_00_carry <= bm_00_carry_next;
+            bm_10_carry <= bm_10_carry_next;
+        end
     end
     assign bm_00 = {bm_00_carry, bm_parity};
     assign bm_10 = {bm_10_carry, ~bm_parity};
@@ -117,12 +120,14 @@ module viterbi_top (
     );
 
     always @(posedge clk) begin
-        decisions_q <= {decision_s3, decision_s2, decision_s1, decision_s0};
+        if (step_en) begin
+            decisions_q <= {decision_s3, decision_s2, decision_s1, decision_s0};
+        end
     end
 
     pmu pmu_ins (
         .clk(clk),
-        .init(accept),
+        .init(sample_en),
         .update(step_en),
         .pm_new_s0(next_s0),
         .pm_new_s1(next_s1),
@@ -138,6 +143,7 @@ module viterbi_top (
         .clk(clk),
         .rst_n(core_reset_n),
         .update(re_en),
+        .select_en(smu_select_en),
         .finish(finish_en),
         .decisions(decisions_q),
         .pm_s0(pm_s0),

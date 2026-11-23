@@ -26,4 +26,5 @@ module pmu (
             pm_prev_s3 <= pm_new_s3;
         end
     end
+
 endmodule
